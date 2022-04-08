@@ -104,7 +104,7 @@ inline int64_t lower_bound_nb_arithmetic(int64_t* data, int64_t size, int64_t se
     mid = (left + right)/2;   /* ignore possibility of overflow of left+right */
 
     /* YOUR CODE HERE */
-    int i = searchkey >= data[mid];
+    int64_t i = searchkey >= data[mid];
     left += i*(mid+1 -left);
     right = i*(right - mid)+mid;
   }
@@ -129,6 +129,9 @@ inline int64_t lower_bound_nb_mask(int64_t* data, int64_t size, int64_t searchke
     mid = (left + right)/2;   /* ignore possibility of overflow of left+right */
 
     /* YOUR CODE HERE */
+    int64_t masking = 0 - (searchkey >= data[mid]);
+    left = left & ~masking | masking & (mid+1);
+    right = right &masking | ~masking & mid;
 
   }
   return right;
