@@ -104,7 +104,9 @@ inline int64_t lower_bound_nb_arithmetic(int64_t* data, int64_t size, int64_t se
     mid = (left + right)/2;   /* ignore possibility of overflow of left+right */
 
     /* YOUR CODE HERE */
-    
+    int i = searchkey >= data[mid];
+    left += i*(mid+1 -left);
+    right = i*(right - mid)+mid;
   }
   return right;
 }
