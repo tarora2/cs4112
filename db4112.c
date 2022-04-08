@@ -22,8 +22,7 @@
 
 
 /* compare two int64_t values - for use with qsort */
-static int
-compare (const void *p1, const void *p2)
+static int compare (const void *p1, const void *p2)
 {
   int a, b;
   a = *(int64_t *)p1;
@@ -34,8 +33,7 @@ compare (const void *p1, const void *p2)
 }
 
 /* initialize searches and data - data is sorted and searches is a random permutation of data */
-int
-init (int64_t *data, int64_t *searches, int count)
+int init (int64_t *data, int64_t *searches, int count)
 {
   for (int64_t i = 0; i < count; i++)
 	{
@@ -46,8 +44,7 @@ init (int64_t *data, int64_t *searches, int count)
 }
 
 /* initialize outer probes of band join */
-int
-band_init (int64_t *outer, int64_t size)
+int band_init (int64_t *outer, int64_t size)
 {
   for (int64_t i = 0; i < size; i++)
 	{
@@ -247,10 +244,38 @@ lower_bound_nb_mask_8x_AVX512 (int64_t *data, int64_t size, __m512i searchkey, _
   __m512i aleft = _mm512_set1_epi64 (0);
   __m512i aright = _mm512_set1_epi64 (size);
   __m512i amid;
+//  __mmask8 search = 1;
 
 
   /* YOUR CODE HERE */
+  while (_mm512_cmplt_epi64_mask (aleft, aright))
+	{
+	  // mid = (left + right) / 2
+	  // add packed 64-bit integers in aleft and aright and store the results in "alr"
+	  __m512i alr = _mm512_add_epi64 (aleft, aright)
+	  // shift packed 64-bit integers in alr right by imm8 (1) while shifting in zeros, and store the results in amid
+	  amid = _mm512_srli_epi64 (aleft_aright, 1);
 
+	  // mask = 0 - (data[mid] < searchkey)
+	  // gather 64-bit integers from addresses starting at amid and offset by each 64-bit element in data (each index is scaled by 8)
+	  __m512i mid = _mm512_i64gather_epi64 (amid, data, 8);
+
+	  // compare packed signed 64-bit integers in mid and searchkey for less-than, and store the results in mask vector "mask"
+	  __mmask8 mask = _mm512_cmplt_epi64_mask (mid, searchkey);
+
+	  // left = left & ~mask | (mid + 1) & mask;
+	  // blend packed 64-bit integers from a and b using control mask k, and store the results in dst.
+	  // __m512i _mm512_mask_blend_epi64 (__mmask8 k, __m512i a, __m512i b)
+	  aleft = _mm512_mask_blend_epi64 (mask, aleft, _mm512_add_epi64 (amid, _mm512_set1_epi64 (1)));
+
+	  // right = mid & ~mask | right & mask;
+	  aright = _mm512_mask_blend_epi64 (mask, amid, aright);
+
+	  // while(left<right)
+//	  search = _mm512_cmplt_epi64_mask (aleft, aright);
+	}
+
+  *result = aright;
 }
 
 void
