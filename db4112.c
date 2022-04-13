@@ -52,119 +52,104 @@ int band_init (int64_t *outer, int64_t size)
 	}
 }
 
-inline int64_t
-simple_binary_search(int64_t
-* data,
-int64_t size, int64_t
-searchkey)
+inline int64_t simple_binary_search(int64_t * data, int64_t size, int64_t searchkey)
 {
-int64_t left = 0;
-int64_t right = size;
-int64_t mid;
+	int64_t left = 0;
+	int64_t right = size;
+	int64_t mid;
 
-while(left<=right) {
-mid = (left + right) / 2;   /* ignore possibility of overflow of left+right */
-if (data[mid]==searchkey) return
-mid;
-if (data[mid]<searchkey)
-left = mid + 1;
-else
-right = mid - 1;
-}
-return -1; /* no match */
+	while(left<=right) 
+	{
+		mid = (left + right) / 2;   /* ignore possibility of overflow of left+right */
+		if (data[mid]==searchkey) 
+			return mid;
+		if (data[mid]<searchkey)
+			left = mid + 1;
+		else
+			right = mid - 1;
+	}
+	return -1; /* no match */
 }
 
-inline int64_t
-lower_bound(int64_t
-* data,
-int64_t size, int64_t
-searchkey)
+inline int64_t lower_bound(int64_t * data, int64_t size, int64_t searchkey)
 {
-/* this binary search variant
-   (a) does only one comparison in the inner loop
-   (b) doesn't require an exact match; instead it returns the index of the first key >= the search key.
-	   That's good in a DB context where we might be doing a range search, and using binary search to
-   identify the first key in the range.
-   (c) If the search key is bigger than all keys, it returns size.
-*/
-int64_t left = 0;
-int64_t right = size;
-int64_t mid;
+	/* this binary search variant
+	(a) does only one comparison in the inner loop
+	(b) doesn't require an exact match; instead it returns the index of the first key >= the search key.
+		That's good in a DB context where we might be doing a range search, and using binary search to
+	identify the first key in the range.
+	(c) If the search key is bigger than all keys, it returns size.
+	*/
+	int64_t left = 0;
+	int64_t right = size;
+	int64_t mid;
 
-while(left<right) {
-mid = (left + right) / 2;   /* ignore possibility of overflow of left+right */
-if (data[mid]>=searchkey)
-right = mid;
-else
-left = mid + 1;
-}
-return
-right;
+	while(left<right) 
+	{
+		mid = (left + right) / 2;   /* ignore possibility of overflow of left+right */
+		if (data[mid]>=searchkey)
+			right = mid;
+		else
+			left = mid + 1;
+	}
+	return right;
 }
 
-inline int64_t
-lower_bound_nb_arithmetic(int64_t
-* data,
-int64_t size, int64_t
-searchkey)
+inline int64_t lower_bound_nb_arithmetic(int64_t * data, int64_t size, int64_t searchkey)
 {
-/* this binary search variant
-   (a) does no comparisons in the inner loop by using multiplication and addition to convert control dependencies
-	   to data dependencies
-   (b) doesn't require an exact match; instead it returns the index of the first key >= the search key.
-	   That's good in a DB context where we might be doing a range search, and using binary search to
-   identify the first key in the range.
-   (c) If the search key is bigger than all keys, it returns size.
-*/
-int64_t left = 0;
-int64_t right = size;
-int64_t mid;
+	/* this binary search variant
+	(a) does no comparisons in the inner loop by using multiplication and addition to convert control dependencies
+		to data dependencies
+	(b) doesn't require an exact match; instead it returns the index of the first key >= the search key.
+		That's good in a DB context where we might be doing a range search, and using binary search to
+	identify the first key in the range.
+	(c) If the search key is bigger than all keys, it returns size.
+	*/
+	int64_t left = 0;
+	int64_t right = size;
+	int64_t mid;
 
-while(left<right) {
-mid = (left + right) / 2;   /* ignore possibility of overflow of left+right */
+	while(left<right) 
+	{
+		mid = (left + right) / 2;   /* ignore possibility of overflow of left+right */
 
-/* YOUR CODE HERE */
-int index = data[mid] < searchkey;
-left += (mid + 1 - left) *
-index;
-right = mid + (right - mid) * index;
+		/* YOUR CODE HERE */
+		int index = data[mid] < searchkey;
+		left += (mid + 1 - left) * index;
+		right = mid + (right - mid) * index;
+	}
+
+	return right;
 }
-return
-right;
-}
 
-inline int64_t
-lower_bound_nb_mask(int64_t
-* data,
-int64_t size, int64_t
-searchkey)
+inline int64_t lower_bound_nb_mask(int64_t * data, int64_t size, int64_t searchkey)
 {
-/* this binary search variant
-   (a) does no comparisons in the inner loop by using bit masking operations to convert control dependencies
-	   to data dependencies
-   (b) doesn't require an exact match; instead it returns the index of the first key >= the search key.
-	   That's good in a DB context where we might be doing a range search, and using binary search to
-   identify the first key in the range.
-   (c) If the search key is bigger than all keys, it returns size.
-*/
-int64_t left = 0;
-int64_t right = size;
-int64_t mid;
+	/* this binary search variant
+	(a) does no comparisons in the inner loop by using bit masking operations to convert control dependencies
+		to data dependencies
+	(b) doesn't require an exact match; instead it returns the index of the first key >= the search key.
+		That's good in a DB context where we might be doing a range search, and using binary search to
+	identify the first key in the range.
+	(c) If the search key is bigger than all keys, it returns size.
+	*/
+	int64_t left = 0;
+	int64_t right = size;
+	int64_t mid;
 
-while(left<right) {
-mid = (left + right) / 2;   /* ignore possibility of overflow of left+right */
+	while(left<right) 
+	{
+		mid = (left + right) / 2;   /* ignore possibility of overflow of left+right */
 
-/* YOUR CODE HERE */
-int64_t mask = 0 - (data[mid] < searchkey);
-left = left & ~mask | (mid + 1) & mask;
-right = mid & ~mask | right & mask;
+		/* YOUR CODE HERE */
+		int64_t mask = 0 - (data[mid] < searchkey);
+		left = left & ~mask | (mid + 1) & mask;
+		right = mid & ~mask | right & mask;
+	}
+
+	return right;
 }
-return
-right;
-}
 
-inline void
-lower_bound_nb_mask_8x (int64_t *data, int64_t size, int64_t *searchkey, int64_t *right)
+inline void lower_bound_nb_mask_8x (int64_t *data, int64_t size, int64_t *searchkey, int64_t *right)
 {
   /* this binary search variant
 	 (a) does no comparisons in the inner loop by using bit masking operations instead
@@ -205,8 +190,7 @@ union int8x8 {
 	int64_t b[8];
 };
 
-void
-printavx (char *name, __m512i v)
+void printavx (char *name, __m512i v)
 {
   union int8x8 n;
 
@@ -223,8 +207,7 @@ printavx (char *name, __m512i v)
 		  n.b[7]);
 }
 
-inline void
-lower_bound_nb_mask_8x_AVX512 (int64_t *data, int64_t size, __m512i searchkey, __m512i *result)
+inline void lower_bound_nb_mask_8x_AVX512 (int64_t *data, int64_t size, __m512i searchkey, __m512i *result)
 {
   /* this binary search variant
 	 (a) does no comparisons in the inner loop by using bit masking operations instead
@@ -281,8 +264,7 @@ lower_bound_nb_mask_8x_AVX512 (int64_t *data, int64_t size, __m512i searchkey, _
   *result = aright;
 }
 
-void
-bulk_binary_search (int64_t *data,
+void bulk_binary_search (int64_t *data,
 					int64_t size,
 					int64_t *searchkeys,
 					int64_t numsearches,
