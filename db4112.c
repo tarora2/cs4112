@@ -379,7 +379,51 @@ band_join (int64_t *outer,
   */
 
   /* YOUR CODE HERE */
+    int64_t extras= outer_size % 8;
+    int64_t resulti = 0;
+    for (int64_t i = 0; i<outer_size - extras; i+=8)
+    {
+        int64_t searchkey[8];
+        int64_t join[8];
+        for(int64_t k = 0; k<8; k++){
+            searchkey[k] = outer[i+k] - bound;
+        }
+        lower_bound_nb_mask_8x(inner,size,searchkey,join);
 
+        for(int64_t j =0; j<8; j++)
+        {
+            int64_t outeri = i+j;
+            int64_t inneri = join[j];
+            while( (inner[inneri] <= outer[outeri] + bound) && inneri < size)
+            {
+                inner_results[resulti] = inneri;
+                outer_results[resulti] = outeri;
+                resulti++;
+
+                if(resulti == result_size)
+                {return resulti;  }
+                inneri++;
+            }
+        }
+
+    }
+    
+     for (int64_t outeri = outer_size- extras; outeri<outer_size; outeri++)
+     {
+         int64_t inneri = lower_bound_nb_mask(inner,size, outer[outeri]-bound);
+         while( (inner[inneri] <= outer[outeri] + bound) && (inneri < size))
+            {
+                inner_results[resulti] = inneri;
+                outer_results[resulti] = outeri;
+                resulti++;
+
+                if(resulti == result_size)
+                {return resulti;  }
+                inneri++;
+            }
+        }
+        return resulti;
+     
 }
 
 int64_t
