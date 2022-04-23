@@ -95,31 +95,30 @@ inline int64_t lower_bound(int64_t * data, int64_t size, int64_t searchkey)
 	return right;
 }
 
-inline int64_t lower_bound_nb_arithmetic(int64_t * data, int64_t size, int64_t searchkey)
+inline int64_t lower_bound_nb_arithmetic(int64_t* data, int64_t size, int64_t searchkey)
 {
-	/* this binary search variant
-	(a) does no comparisons in the inner loop by using multiplication and addition to convert control dependencies
-		to data dependencies
-	(b) doesn't require an exact match; instead it returns the index of the first key >= the search key.
-		That's good in a DB context where we might be doing a range search, and using binary search to
-	identify the first key in the range.
-	(c) If the search key is bigger than all keys, it returns size.
-	*/
-	int64_t left = 0;
-	int64_t right = size;
-	int64_t mid;
-
-	while(left<right) 
-	{
-		mid = (left + right) / 2;   /* ignore possibility of overflow of left+right */
-
-		/* YOUR CODE HERE */
-		int index = data[mid] < searchkey;
-		left += (mid + 1 - left) * index;
-		right = mid + (right - mid) * index;
-	}
-
-	return right;
+  /* this binary search variant
+     (a) does no comparisons in the inner loop by using multiplication and addition
+to convert control dependencies
+         to data dependencies
+     (b) doesn't require an exact match; instead it returns the index of the first 
+key >= the search key.
+         That's good in a DB context where we might be doing a range search, and 
+using binary search to
+ identify the first key in the range.
+     (c) If the search key is bigger than all keys, it returns size.
+  */
+  int64_t left=0;
+  int64_t right=size;
+  int64_t mid;
+  
+  while(left<right) {
+    mid = (left + right)/2;   /* ignore possibility of overflow of left+right */
+    int64_t test = (data[mid]>=searchkey);
+    right=mid*test + right*(1-test);
+    left=(mid+1)*(1-test) + left*test;
+  }
+  return right;
 }
 
 inline int64_t lower_bound_nb_mask(int64_t * data, int64_t size, int64_t searchkey)
@@ -136,17 +135,13 @@ inline int64_t lower_bound_nb_mask(int64_t * data, int64_t size, int64_t searchk
 	int64_t right = size;
 	int64_t mid;
 
-	while(left<right) 
-	{
-		mid = (left + right) / 2;   /* ignore possibility of overflow of left+right */
-
-		/* YOUR CODE HERE */
-		int64_t mask = 0 - (data[mid] < searchkey);
-		left = left & ~mask | (mid + 1) & mask;
-		right = mid & ~mask | right & mask;
-	}
-
-	return right;
+	while(left<right) {
+    mid = (left + right)/2;   /* ignore possibility of overflow of left+right */
+    uint64_t test_mask = (data[mid]>=searchkey)-1; /* boolean 1 becomes mask of 0, boolean 0 becomes mask of 0xFFFFFFFFFFFFFFFF */
+    right=(mid&(~test_mask)) | (right&test_mask);
+    left=((mid+1)&test_mask) | (left& ~test_mask);
+  }
+  return right;
 }
 
 inline void lower_bound_nb_mask_8x (int64_t *data, int64_t size, int64_t *searchkey, int64_t *right)
@@ -167,21 +162,21 @@ inline void lower_bound_nb_mask_8x (int64_t *data, int64_t size, int64_t *search
   right[0] = right[1] = right[2] = right[3] = right[4] = right[5] = right[6] = right[7] = size;
 
   /* YOUR CODE HERE */
-  int count = 0;
-  while (count < 8)
-	{
-	  count = 0;
-	  for (int i = 0; i < 8; i++)
-		{
-		  mid[i] = (left[i] + right[i]) / 2;
-		  int64_t mask = 0 - (data[mid[i]] < searchkey[i]);
-
-		  left[i] = left[i] & ~mask | (mid[i] + 1) & mask;
-		  right[i] = mid[i] & ~mask | right[i] & mask;
-
-		  if (left[i] >= right[i]) count++;
-		}
-	}
+  while(left[0]<right[0] || left[1]<right[1] || left[2]<right[2] || left[3]<right[3] ||
+	left[4]<right[4] || left[5]<right[5] || left[6]<right[6] || left[7]<right[7]) {
+    for(int s=0;s<8;s++) {
+      /* an optimizing compiler might help here by (a) unrolling the loop, and (b) automatically using SIMD instructions.
+	 also, cache misses might be overlapped given an out-of-order processor
+       */
+      mid[s] = (left[s] + right[s])/2;   /* ignore possibility of overflow of left+right */
+      test_mask[s] = (data[mid[s]]>=searchkey[s])-1; /* boolean 1 becomes mask of 0, boolean 0 becomes mask of 0xFFFFFFFFFFFFFFFF */
+      right[s]=(mid[s]&(~test_mask[s])) | (right[s]&test_mask[s]);
+      left[s]=((mid[s]+1)&test_mask[s]) | (left[s]& ~test_mask[s]);
+    }
+    /* Don't need to return anything because the result elements are already in the "right" array, which corresponds to
+       the result array in the calling context
+    */
+  }
 }
 
 /* The following union type is handy to output the contents of AVX512 data types */
@@ -224,45 +219,36 @@ inline void lower_bound_nb_mask_8x_AVX512 (int64_t *data, int64_t size, __m512i 
 	 as an __m512i value rather than via a pointer.
   */
 
-  __m512i aleft = _mm512_set1_epi64 (0);
-  __m512i aright = _mm512_set1_epi64 (size);
+ __m512i aleft = _mm512_set1_epi64(0);
+  __m512i ones = _mm512_set1_epi64(1);
   __m512i amid;
-  __m512i count = _mm512_set1_epi64 (0);
+  __m512i aright = _mm512_set1_epi64(size); /* ignore - see Ed post */
+  __m512i amask;
+  __m512i datavec;
+  __mmask8 cmp;
 
+  
+  while(_mm512_cmplt_epi64_mask(aleft,aright))
+    {
+      amid = _mm512_add_epi64 (aleft,aright);
+      amid = _mm512_srli_epi64 (amid,1); // divide by 2 */
 
-  /* YOUR CODE HERE */
-
-  // while (count < 8)
-  while (_mm512_cmplt_epi64_mask (count, _mm512_set1_epi64 (8)))
-	{
-	  // mid = (left + right) / 2
-	  // add packed 64-bit integers in aleft and aright and store the results in "alr"
-	  __m512i alr = _mm512_add_epi64 (aleft, aright);
-	  // shift packed 64-bit integers in alr right by imm8 (1) while shifting in zeros, and store the results in amid
-	  amid = _mm512_srli_epi64 (alr, 1);
-
-	  // mask = 0 - (data[mid] < searchkey)
-	  // gather 64-bit integers from addresses starting at amid and offset by each 64-bit element in data (each index is scaled by 8)
-	  // __m512i _mm512_i64gather_epi64 (__m512i vindex, void const* base_addr, int scale)
-	  __m512i mid = _mm512_i64gather_epi64 (amid, data, 8);
-	  // compare packed signed 64-bit integers in mid and searchkey for less-than, and store the results in mask vector "mask"
-	  __mmask8 mask = _mm512_cmplt_epi64_mask (mid, searchkey);
-
-	  // left = left & ~mask | (mid + 1) & mask;
-	  // blend packed 64-bit integers from a and b using control mask k, and store the results in dst.
-	  // __m512i _mm512_mask_blend_epi64 (__mmask8 k, __m512i a, __m512i b)
-	  aleft = _mm512_mask_blend_epi64 (mask, aleft, _mm512_add_epi64 (amid, _mm512_set1_epi64 (1)));
-
-	  // right = mid & ~mask | right & mask;
-	  aright = _mm512_mask_blend_epi64 (mask, amid, aright);
-
-	  // if (left < right) count++;
-	  count = _mm512_add_epi64 (count, _mm512_set1_epi64 (_mm512_cmplt_epi64_mask (aleft, aright)));
-
-	}
-
+      datavec = _mm512_i64gather_epi64 (amid, data, 8);
+      /*
+      printavx("aleft",aleft);
+      printavx("aright",aright);
+      printavx("amid",amid);
+      printavx("searchkey",*searchkey);
+      printavx("datavec",datavec);
+      */
+      
+      cmp = _mm512_cmpge_epi64_mask (datavec, searchkey);
+      aright = _mm512_mask_blend_epi64 (cmp, aright, amid);
+      aleft = _mm512_mask_blend_epi64 (cmp, _mm512_add_epi64(amid,ones), aleft);
+    }
   *result = aright;
 }
+
 
 void bulk_binary_search (int64_t *data,
 					int64_t size,
