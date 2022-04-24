@@ -134,6 +134,7 @@ inline int64_t lower_bound_nb_mask(int64_t * data, int64_t size, int64_t searchk
 	int64_t left = 0;
 	int64_t right = size;
 	int64_t mid;
+	uint64_t test_make[8];
 
 	while(left<right) {
     mid = (left + right)/2;   /* ignore possibility of overflow of left+right */
@@ -161,7 +162,6 @@ inline void lower_bound_nb_mask_8x (int64_t *data, int64_t size, int64_t *search
   int64_t mid[8];
   right[0] = right[1] = right[2] = right[3] = right[4] = right[5] = right[6] = right[7] = size;
 
-  /* YOUR CODE HERE */
   while(left[0]<right[0] || left[1]<right[1] || left[2]<right[2] || left[3]<right[3] ||
 	left[4]<right[4] || left[5]<right[5] || left[6]<right[6] || left[7]<right[7]) {
     for(int s=0;s<8;s++) {
@@ -391,7 +391,6 @@ band_join (int64_t *outer,
                 inneri++;
             }
         }
-
     }
     
      for (int64_t outeri = outer_size- extras; outeri<outer_size; outeri++)
@@ -407,8 +406,8 @@ band_join (int64_t *outer,
                 {return resulti;  }
                 inneri++;
             }
-        }
-        return resulti;
+    }
+    return resulti;
      
 }
 
@@ -445,7 +444,6 @@ band_join_opt (int64_t *outer,
   */
 
   /* YOUR CODE HERE */
-
 }
 
 int
