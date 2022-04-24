@@ -366,16 +366,25 @@ band_join (int64_t *outer,
   */
 
   /* YOUR CODE HERE */
-    int64_t extras= outer_size % 8;
-    int64_t resulti = 0;
-    for (int64_t i = 0; i<outer_size - extras; i+=8)
-    {
-        int64_t searchkey[8];
-        int64_t join[8];
-        for(int64_t k = 0; k<8; k++){
-            searchkey[k] = outer[i+k] - bound;
-        }
-        lower_bound_nb_mask_8x(inner,size,searchkey,join);
+  int64_t extras= outer_size % 8;
+  int64_t resulti = 0;
+  for (int64_t i = 0; i<outer_size - extras; i+=8)
+	{
+	  /* lower_bound_nb_mask_8x_AVX512 */
+	  register __m512i searchkey_8x = _mm512_sub_epi64 (
+		  _mm512_load_epi64 (&outer[i]),
+		  _mm512_set1_epi64 (bound)
+	  );
+	  int64_t join[8];
+	  lower_bound_nb_mask_8x_AVX512 (inner, size, searchkey_8x, (__m512i *)join);
+
+	  /* lower_bound_nb_mask_8x */
+//        int64_t searchkey[8];
+//        int64_t join[8];
+//        for(int64_t k = 0; k<8; k++){
+//            searchkey[k] = outer[i+k] - bound;
+//        }
+//        lower_bound_nb_mask_8x(inner,size,searchkey,join);
 
         for(int64_t j =0; j<8; j++)
         {
