@@ -134,7 +134,7 @@ inline int64_t lower_bound_nb_mask(int64_t * data, int64_t size, int64_t searchk
 	int64_t left = 0;
 	int64_t right = size;
 	int64_t mid;
-	uint64_t test_make[8];
+	
 
 	while(left<right) {
     mid = (left + right)/2;   /* ignore possibility of overflow of left+right */
@@ -160,6 +160,7 @@ inline void lower_bound_nb_mask_8x (int64_t *data, int64_t size, int64_t *search
   */
   int64_t left[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
   int64_t mid[8];
+  uint64_t test_mask[8];
   right[0] = right[1] = right[2] = right[3] = right[4] = right[5] = right[6] = right[7] = size;
 
   while(left[0]<right[0] || left[1]<right[1] || left[2]<right[2] || left[3]<right[3] ||
