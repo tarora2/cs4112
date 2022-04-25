@@ -17,8 +17,8 @@
 #include <immintrin.h>
 
 /* uncomment out the following line for debug info during run */
-// #define DEBUG
-
+#define DEBUG
+int64_t idx = 0;
 
 
 /* compare two int64_t values - for use with qsort */
@@ -453,7 +453,64 @@ band_join_opt (int64_t *outer,
 	 This algorithm should be implemented by all three-person groups.  It is optional for two-person groups.
   */
 
-  /* YOUR CODE HERE */
+    int64_t outer_index = 0; 
+    register __m512i search_8x;
+	
+	for (int64_t i = 0; i < outer_size - outer_index; i += 8) {  
+		int64_t outer_8x[8];
+
+		int i = 0;
+		while (i < 8) {
+			outer_8x[i] = outer[outer_index + i] - bound;
+			i +=  1;
+		}
+		i = 0;
+		search_8x = _mm512_load_epi64(&outer_8x);
+
+		int64_t lower_bound_index_8x[8];
+		lower_bound_nb_mask_8x_AVX512(inner, size, search_8x, (__m512i*) &lower_bound_index_8x);
+
+		while (i < 8) {
+			if (lower_bound_index_8x[i] < size) {
+				int64_t upper_bound_index = lower_bound_nb_mask(inner, size, outer[outer_index + i] + bound);
+				for (int j = lower_bound_index_8x[i]; j < upper_bound_index; j++) {
+					if (result_size < idx) {
+						return result_size;
+					}
+					else {
+						outer_results[idx] = outer_index; 
+						inner_results[idx] = j; 
+						idx++;
+					}
+				}            
+			}
+			i += 1;
+		}
+		outer_index += 8;
+	}
+
+
+	for (int outeri = outer_index; outeri < outer_size; outeri++) {
+		int64_t search_key = outer[outer_index] - bound; 
+		int64_t lower_bound_index = lower_bound_nb_mask(inner, size, search_key);
+
+		if(lower_bound_index < size) {
+			int64_t upper_bound_index = lower_bound_nb_mask(inner, size, outer[outer_index] + bound);
+			for (int i = lower_bound_index; i < upper_bound_index; i++) {
+				if (result_size < idx) {
+					return result_size;
+				}
+				else {
+					outer_results[idx] = outer_index; 
+					inner_results[idx] = i; 
+					idx++;
+				}
+			}
+		}
+		outer_index++;
+	}
+
+	return idx;
 }
 
 int
@@ -575,7 +632,7 @@ main (int argc, char *argv[])
   gettimeofday (&before, NULL);
 
   /* the code that you want to measure goes here; make a function call */
-  total_results = band_join (outer, outer_size, data, arraysize, outer_results, inner_results, result_size, bound);
+  total_results = band_join_opt (outer, outer_size, data, arraysize, outer_results, inner_results, result_size, bound);
 
   gettimeofday (&after, NULL);
   printf ("Band join result size is %ld with an average of %f matches per output record\n",
@@ -583,7 +640,7 @@ main (int argc, char *argv[])
 		  1.0 * total_results / (1.0 + outer_results[total_results - 1]));
   printf ("Time in band_join loop is %ld microseconds or %f microseconds per outer record\n",
 		  (after.tv_sec - before.tv_sec) * 1000000 + (after.tv_usec - before.tv_usec),
-		  1.0 * ((after.tv_sec - before.tv_sec) * 1000000 + (after.tv_usec - before.tv_usec)) / outer_size);
+		  1.0 * ((after.tv_sec - before.tv_sec) * 1000000 + (after.tv_usec - before.tv_usec)) / (1.0 + outer_results[total_results - 1]));
 
 #ifdef DEBUG
   /* show the band_join results */
