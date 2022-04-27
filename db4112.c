@@ -457,7 +457,7 @@ band_join_opt (int64_t *outer,
    The inner scanning code does not need to use SIMD.
    This algorithm should be implemented by all three-person groups.  It is optional for two-person groups.
 */
-  int64_t extras= outer_size % 8;
+ int64_t extras= outer_size % 8;
   int64_t resulti = 0;
   int64_t outeri =0;
 for (;outeri<outer_size - extras; outeri+=8)
@@ -467,7 +467,7 @@ for (;outeri<outer_size - extras; outeri+=8)
         _mm512_load_epi64 (&outer[outeri]),
         _mm512_set1_epi64 (bound)
     );
-    register __m512i upperkey_8x = _mm512_sub_epi64 (
+    register __m512i upperkey_8x = _mm512_add_epi64 (
         _mm512_load_epi64 (&outer[outeri]),
         _mm512_set1_epi64 (bound+1)
     );
@@ -475,26 +475,24 @@ for (;outeri<outer_size - extras; outeri+=8)
     int64_t join[8];
     lower_bound_nb_mask_8x_AVX512 (inner, size, searchkey_8x, (__m512i *)joinL);
     lower_bound_nb_mask_8x_AVX512 (inner, size, upperkey_8x, (__m512i *)join);
-      for(int64_t j =0; j<8; j++)
+      for(int64_t j = outeri; j<outeri+8; j++)
       {
-      
-          int64_t inneri = joinL[j];
-          int64_t upperi = join[j];
+          int64_t inneri = joinL[j-outeri];
+          int64_t upperi = join[j-outeri];
           if(inner[inneri]>outer[j] + bound){
               continue;
           }
           if(upperi < inneri){
-              upperi = size;
+              upperi = size; 
           }
-          while( inneri< upperi)
+          for(int i = inneri; i<upperi; i++)
           {
-              inner_results[resulti] = inneri;
+              inner_results[resulti] = i;
               outer_results[resulti] = j;
               resulti++;
               if(resulti >= result_size)
               {*outer_count = j;
         return resulti;  }
-              inneri++;
           }
       }
   }
@@ -508,21 +506,21 @@ for (;outeri<outer_size - extras; outeri+=8)
           if(upperi < inneri){
               upperi = size;
           }
-       while( inneri < upperi)
+       for(int i = inneri; i<upperi; i++)
           {
-              inner_results[resulti] = inneri;
+              inner_results[resulti] = i;
               outer_results[resulti] = outeri;
               resulti++;
               if(resulti >= result_size)
               {*outer_count = outeri;
               return resulti;  }
-              inneri++;
           }
   }
   *outer_count = outeri;
   return resulti;
  
 }
+
  
 
 
