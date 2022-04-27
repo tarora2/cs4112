@@ -425,98 +425,99 @@ band_join (int64_t *outer,
 
 int64_t
 band_join_opt (int64_t *outer,
-			   int64_t outer_size,
-			   int64_t *inner,
-			   int64_t size,
-			   int64_t *outer_results,
-			   int64_t *inner_results,
-			   int64_t result_size,
-			   int64_t bound,
-			   int64_t *outer_count)
+             int64_t outer_size,
+             int64_t *inner,
+             int64_t size,
+             int64_t *outer_results,
+             int64_t *inner_results,
+             int64_t result_size,
+             int64_t bound,
+             int64_t* outer_count)
 {
-  /* In a band join we want matches within a range of values.  If p is the probe value from the outer table, then all
-	 reccords in the inner table with a key in the range [p-bound,p+bound] inclusive should be part of the result.
-
-	 Results are returned via two arrays. outer_results stores the index of the outer table row that matches, and
-	 inner_results stores the index of the inner table row that matches.  result_size tells you the size of the
-	 output array that has been allocated. You should make sure that you don't exceed this size.  If there are
-	 more results than can fit in the result arrays, then return early with just a prefix of the results in the result
-	 arrays. The return value of the function should be the number of output results.
-
-	 To do the binary search, you should be calling the routine lower_bound_nb_mask_8x_AVX512 for the bulk of the
-	 data, and lower_bound_nb_mask for additional elements when outer_size is not a multiple of 8 (See bulk_binary_search_8x).
-
-	 One performance overhead of the previous band_join implementation
-	 is that one has to test the search key for every
-	 inner table record.  In band_join_opt, we avoid testing the search key in the inner loop.
-	 To achieve this effect, one needs to know both the lower bounds and the upper bounds for each search...
-
-	 The inner scanning code does not need to use SIMD.
-
-	 This algorithm should be implemented by all three-person groups.  It is optional for two-person groups.
-  */
-
-    int64_t outer_index = 0; 
-    register __m512i search_8x;
-	
-	while(outer_size - outer_index >= 8) {
-		int64_t outer_8x[8];
-
-		int i = 0;
-		while (i < 8) {
-			outer_8x[i] = outer[outer_index + i] - bound;
-			i +=  1;
-		}
-		i = 0;
-		search_8x = _mm512_load_epi64(&outer_8x);
-
-		int64_t lower_bound_index_8x[8];
-		lower_bound_nb_mask_8x_AVX512(inner, size, search_8x, (__m512i*) &lower_bound_index_8x);
-
-		while (i < 8) {
-			if (lower_bound_index_8x[i] < size) {
-				int64_t upper_bound_index = lower_bound_nb_mask(inner, size, outer[outer_index + i] + bound);
-				(*outer_count)++;
-				for (int j = lower_bound_index_8x[i]; j < upper_bound_index; j++) {
-					if (result_size < idx) {
-						return result_size;
-					}
-					else {
-						outer_results[idx] = outer_index; 
-						inner_results[idx] = j; 
-						idx++;
-					}
-				}            
-			}
-			i += 1;
-		}
-		outer_index += 8;
-	}
-
-
-	for (int outeri = outer_index; outeri < outer_size; outeri++) {
-		int64_t search_key = outer[outer_index] - bound; 
-		int64_t lower_bound_index = lower_bound_nb_mask(inner, size, search_key);
-
-		if(lower_bound_index < size) {
-			int64_t upper_bound_index = lower_bound_nb_mask(inner, size, outer[outer_index] + bound);
-			(*outer_count)++;
-			for (int i = lower_bound_index; i < upper_bound_index; i++) {
-				if (result_size < idx) {
-					return result_size;
-				}
-				else {
-					outer_results[idx] = outer_index; 
-					inner_results[idx] = i; 
-					idx++;
-				}
-			}
-		}
-		outer_index++;
-	}
-
-	return idx;
+/* In a band join we want matches within a range of values.  If p is the probe value from the outer table, then all
+   reccords in the inner table with a key in the range [p-bound,p+bound] inclusive should be part of the result.
+   Results are returned via two arrays. outer_results stores the index of the outer table row that matches, and
+   inner_results stores the index of the inner table row that matches.  result_size tells you the size of the
+   output array that has been allocated. You should make sure that you don't exceed this size.  If there are
+   more results than can fit in the result arrays, then return early with just a prefix of the results in the result
+   arrays. The return value of the function should be the number of output results.
+   To do the binary search, you should be calling the routine lower_bound_nb_mask_8x_AVX512 for the bulk of the
+   data, and lower_bound_nb_mask for additional elements when outer_size is not a multiple of 8 (See bulk_binary_search_8x).
+   One performance overhead of the previous band_join implementation
+   is that one has to test the search key for every
+   inner table record.  In band_join_opt, we avoid testing the search key in the inner loop.
+   To achieve this effect, one needs to know both the lower bounds and the upper bounds for each search...
+   The inner scanning code does not need to use SIMD.
+   This algorithm should be implemented by all three-person groups.  It is optional for two-person groups.
+*/
+  int64_t extras= outer_size % 8;
+  int64_t resulti = 0;
+  int64_t outeri =0;
+for (;outeri<outer_size - extras; outeri+=8)
+  {
+    /* lower_bound_nb_mask_8x_AVX512 */
+    register __m512i searchkey_8x = _mm512_sub_epi64 (
+        _mm512_load_epi64 (&outer[outeri]),
+        _mm512_set1_epi64 (bound)
+    );
+    register __m512i upperkey_8x = _mm512_sub_epi64 (
+        _mm512_load_epi64 (&outer[outeri]),
+        _mm512_set1_epi64 (bound+1)
+    );
+    int64_t joinL[8];
+    int64_t join[8];
+    lower_bound_nb_mask_8x_AVX512 (inner, size, searchkey_8x, (__m512i *)joinL);
+    lower_bound_nb_mask_8x_AVX512 (inner, size, upperkey_8x, (__m512i *)join);
+      for(int64_t j =0; j<8; j++)
+      {
+      
+          int64_t inneri = joinL[j];
+          int64_t upperi = join[j];
+          if(inner[inneri]>outer[j] + bound){
+              continue;
+          }
+          if(upperi < inneri){
+              upperi = size;
+          }
+          while( inneri< upperi)
+          {
+              inner_results[resulti] = inneri;
+              outer_results[resulti] = j;
+              resulti++;
+              if(resulti >= result_size)
+              {*outer_count = j;
+        return resulti;  }
+              inneri++;
+          }
+      }
+  }
+    for (; outeri<outer_size; outeri++)
+   {
+       int64_t inneri = lower_bound_nb_mask(inner,size, outer[outeri]-bound);
+       int64_t upperi = lower_bound_nb_mask(inner,size, outer[outeri]+bound+1);
+      if(inner[inneri]>outer[outeri] + bound){
+              continue;
+          }
+          if(upperi < inneri){
+              upperi = size;
+          }
+       while( inneri < upperi)
+          {
+              inner_results[resulti] = inneri;
+              outer_results[resulti] = outeri;
+              resulti++;
+              if(resulti >= result_size)
+              {*outer_count = outeri;
+              return resulti;  }
+              inneri++;
+          }
+  }
+  *outer_count = outeri;
+  return resulti;
+ 
 }
+ 
+
 
 int
 main (int argc, char *argv[])
