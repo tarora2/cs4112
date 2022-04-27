@@ -350,30 +350,27 @@ band_join (int64_t *outer,
 {
   /* In a band join we want matches within a range of values.  If p is the probe value from the outer table, then all
 	 reccords in the inner table with a key in the range [p-bound,p+bound] inclusive should be part of the result.
-
 	 Results are returned via two arrays. outer_results stores the index of the outer table row that matches, and
 	 inner_results stores the index of the inner table row that matches.  result_size tells you the size of the
 	 output array that has been allocated. You should make sure that you don't exceed this size.  If there are
 	 more results than can fit in the result arrays, then return early with just a prefix of the results in the result
 	 arrays. The return value of the function should be the number of output results.
-
 	 To do the binary search, you should be calling the routine lower_bound_nb_mask_8x_AVX512 for the bulk of the
 	 data, and lower_bound_nb_mask for additional elements when outer_size is not a multiple of 8 (See bulk_binary_search_8x).
-
 	 Once you've found the lower bounds, do the following for each of the 8 search keys in turn:
 		scan along the sorted inner array, generating outputs for each match, and making sure not to exceed the output array bounds.
-
 	 This inner scanning code does not have to use SIMD.
   */
 
   /* YOUR CODE HERE */
   int64_t extras= outer_size % 8;
   int64_t resulti = 0;
-  for (int64_t i = 0; i<outer_size - extras; i+=8)
+  int64_t outeri =0;
+  for (; outeri<outer_size - extras; outeri+=8)
 	{
 	  /* lower_bound_nb_mask_8x_AVX512 */
 	  register __m512i searchkey_8x = _mm512_sub_epi64 (
-		  _mm512_load_epi64 (&outer[i]),
+		  _mm512_load_epi64 (&outer[outeri]),
 		  _mm512_set1_epi64 (bound)
 	  );
 	  int64_t join[8];
@@ -387,38 +384,48 @@ band_join (int64_t *outer,
 //        }
 //        lower_bound_nb_mask_8x(inner,size,searchkey,join);
 
-        for(int64_t j =0; j<8; j++)
+        for(int64_t j =outeri; j<outeri+8; j++)
         {
-            int64_t outeri = i+j;
-	    *outer_count = outeri;
-            int64_t inneri = join[j];
-            while( (inner[inneri] <= outer[outeri] + bound) && inneri < size)
+           
+            int64_t inneri = join[j-outeri];
+		if(inner[inneri]>outer[j] + bound)
+		{
+			continue;
+		}
+            while( (inner[inneri] <= outer[j] + bound) && inneri < size)
             {
                 inner_results[resulti] = inneri;
-                outer_results[resulti] = outeri;
+                outer_results[resulti] = j;
                 resulti++;
 
-                if(resulti == result_size)
-                {return resulti;  }
+                if(resulti >= result_size)
+                {  *outer_count = j;
+		return resulti;  }
                 inneri++;
             }
         }
     }
     
-     for (int64_t outeri = outer_size- extras; outeri<outer_size; outeri++)
+     for (; outeri<outer_size; outeri++)
      {
          int64_t inneri = lower_bound_nb_mask(inner,size, outer[outeri]-bound);
-         while( (inner[inneri] <= outer[outeri] + bound) && (inneri < size))
+         if(inner[inneri]>outer[outeri] + bound)
+			{
+			continue;
+			}
+	while( (inner[inneri] <= outer[outeri] + bound) && (inneri < size))
             {
                 inner_results[resulti] = inneri;
                 outer_results[resulti] = outeri;
                 resulti++;
 
                 if(resulti == result_size)
-                {return resulti;  }
+                {*outer_count=outeri;
+		return resulti;  }
                 inneri++;
             }
     }
+	*outer_count=outeri;
     return resulti;
      
 }
