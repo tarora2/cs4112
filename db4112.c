@@ -345,7 +345,8 @@ band_join (int64_t *outer,
 		   int64_t *outer_results,
 		   int64_t *inner_results,
 		   int64_t result_size,
-		   int64_t bound)
+		   int64_t bound,
+		   int64_t *outer_count)
 {
   /* In a band join we want matches within a range of values.  If p is the probe value from the outer table, then all
 	 reccords in the inner table with a key in the range [p-bound,p+bound] inclusive should be part of the result.
@@ -429,7 +430,8 @@ band_join_opt (int64_t *outer,
 			   int64_t *outer_results,
 			   int64_t *inner_results,
 			   int64_t result_size,
-			   int64_t bound)
+			   int64_t bound,
+			   int64_t *outer_count)
 {
   /* In a band join we want matches within a range of values.  If p is the probe value from the outer table, then all
 	 reccords in the inner table with a key in the range [p-bound,p+bound] inclusive should be part of the result.
@@ -473,6 +475,7 @@ band_join_opt (int64_t *outer,
 		while (i < 8) {
 			if (lower_bound_index_8x[i] < size) {
 				int64_t upper_bound_index = lower_bound_nb_mask(inner, size, outer[outer_index + i] + bound);
+				(*outer_count)++;
 				for (int j = lower_bound_index_8x[i]; j < upper_bound_index; j++) {
 					if (result_size < idx) {
 						return result_size;
@@ -496,6 +499,7 @@ band_join_opt (int64_t *outer,
 
 		if(lower_bound_index < size) {
 			int64_t upper_bound_index = lower_bound_nb_mask(inner, size, outer[outer_index] + bound);
+			(*outer_count)++;
 			for (int i = lower_bound_index; i < upper_bound_index; i++) {
 				if (result_size < idx) {
 					return result_size;
@@ -518,6 +522,7 @@ main (int argc, char *argv[])
 {
   long long counter;
   int64_t arraysize, outer_size, result_size;
+  int64_t outer_count = 0;
   int64_t bound;
   int64_t * data, *queries, *results;
   int ret;
@@ -632,15 +637,23 @@ main (int argc, char *argv[])
   gettimeofday (&before, NULL);
 
   /* the code that you want to measure goes here; make a function call */
-  total_results = band_join_opt (outer, outer_size, data, arraysize, outer_results, inner_results, result_size, bound);
+//   total_results = band_join_opt (outer, outer_size, data, arraysize, outer_results, inner_results, result_size, bound);
 
-  gettimeofday (&after, NULL);
-  printf ("Band join result size is %ld with an average of %f matches per output record\n",
-		  total_results,
-		  1.0 * total_results / (1.0 + outer_results[total_results - 1]));
-  printf ("Time in band_join loop is %ld microseconds or %f microseconds per outer record\n",
-		  (after.tv_sec - before.tv_sec) * 1000000 + (after.tv_usec - before.tv_usec),
-		  1.0 * ((after.tv_sec - before.tv_sec) * 1000000 + (after.tv_usec - before.tv_usec)) / (1.0 + outer_results[total_results - 1]));
+//   gettimeofday (&after, NULL);
+//   printf ("Band join result size is %ld with an average of %f matches per output record\n",
+// 		  total_results,
+// 		  1.0 * total_results / (1.0 + outer_results[total_results - 1]));
+//   printf ("Time in band_join loop is %ld microseconds or %f microseconds per outer record\n",
+// 		  (after.tv_sec - before.tv_sec) * 1000000 + (after.tv_usec - before.tv_usec),
+// 		  1.0 * ((after.tv_sec - before.tv_sec) * 1000000 + (after.tv_usec - before.tv_usec)) / (1.0 + outer_results[total_results - 1]));
+
+	total_results=band_join_opt(outer, outer_size, data, arraysize, outer_results, inner_results, result_size, bound, &outer_count);
+                  
+    gettimeofday(&after,NULL);
+
+    printf("Band join result size is %ld with an average of %f matches per outer record\n",total_results, 1.0*total_results/outer_count);
+    printf("Time in band_join loop is %ld microseconds or %f microseconds per outer record\n", (after.tv_sec-before.tv_sec)*1000000+(after.tv_usec-before.tv_usec), 1.0*((after.tv_sec-before.tv_sec)*1000000+(after.tv_usec-before.tv_usec))/outer_count);
+
 
 #ifdef DEBUG
   /* show the band_join results */
