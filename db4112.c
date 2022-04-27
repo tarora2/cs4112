@@ -459,7 +459,7 @@ band_join_opt (int64_t *outer,
     int64_t outer_index = 0; 
     register __m512i search_8x;
 	
-	for (int64_t i = 0; i < outer_size - outer_index; i += 8) {  
+	while(outer_size - outer_index >= 8) {
 		int64_t outer_8x[8];
 
 		int i = 0;
