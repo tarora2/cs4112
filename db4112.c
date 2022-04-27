@@ -390,6 +390,7 @@ band_join (int64_t *outer,
         for(int64_t j =0; j<8; j++)
         {
             int64_t outeri = i+j;
+	    *outer_count = outeri;
             int64_t inneri = join[j];
             while( (inner[inneri] <= outer[outeri] + bound) && inneri < size)
             {
