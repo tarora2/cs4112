@@ -376,14 +376,6 @@ band_join (int64_t *outer,
 	  int64_t join[8];
 	  lower_bound_nb_mask_8x_AVX512 (inner, size, searchkey_8x, (__m512i *)join);
 
-	  /* lower_bound_nb_mask_8x */
-//        int64_t searchkey[8];
-//        int64_t join[8];
-//        for(int64_t k = 0; k<8; k++){
-//            searchkey[k] = outer[i+k] - bound;
-//        }
-//        lower_bound_nb_mask_8x(inner,size,searchkey,join);
-
         for(int64_t j =outeri; j<outeri+8; j++)
         {
            
@@ -425,7 +417,7 @@ band_join (int64_t *outer,
                 inneri++;
             }
     }
-	*outer_count=outeri;
+    *outer_count=outeri;
     return resulti;
      
 }
@@ -462,7 +454,6 @@ band_join_opt (int64_t *outer,
   int64_t outeri =0;
 for (;outeri<outer_size - extras; outeri+=8)
   {
-    /* lower_bound_nb_mask_8x_AVX512 */
     register __m512i searchkey_8x = _mm512_sub_epi64 (
         _mm512_load_epi64 (&outer[outeri]),
         _mm512_set1_epi64 (bound)
@@ -471,14 +462,14 @@ for (;outeri<outer_size - extras; outeri+=8)
         _mm512_load_epi64 (&outer[outeri]),
         _mm512_set1_epi64 (bound+1)
     );
-    int64_t joinL[8];
     int64_t join[8];
-    lower_bound_nb_mask_8x_AVX512 (inner, size, searchkey_8x, (__m512i *)joinL);
-    lower_bound_nb_mask_8x_AVX512 (inner, size, upperkey_8x, (__m512i *)join);
+    int64_t Ujoin[8];
+    lower_bound_nb_mask_8x_AVX512 (inner, size, searchkey_8x, (__m512i *)join);
+    lower_bound_nb_mask_8x_AVX512 (inner, size, upperkey_8x, (__m512i *)Ujoin);
       for(int64_t j = outeri; j<outeri+8; j++)
       {
-          int64_t inneri = joinL[j-outeri];
-          int64_t upperi = join[j-outeri];
+          int64_t inneri = join[j-outeri];
+          int64_t upperi = Ujoin[j-outeri];
           if(inner[inneri]>outer[j] + bound){
               continue;
           }
@@ -492,7 +483,7 @@ for (;outeri<outer_size - extras; outeri+=8)
               resulti++;
               if(resulti >= result_size)
               {*outer_count = j;
-        return resulti;  }
+          return resulti;  }
           }
       }
   }
